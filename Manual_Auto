@@ -1,0 +1,137 @@
+#include <ESP8266WiFi.h>
+#include <FirebaseArduino.h>
+
+#include <RTClib.h>
+#include <Wire.h>
+#include "secret.h"
+
+/*Define Wi-Fi and Firebase Attributes */
+  char ssid[] = SECRET_SSID; 
+  char pass[] = SECRET_PASS;
+  #define FIREBASE_HOST "hasna-smarthome.firebaseio.com"
+  #define FIREBASE_AUTH "cLJ4s5FUhMb3mOYtzd2Hgh106Y6NNePcGxHLDshk"
+ 
+RTC_DS3231 rtc;
+WiFiClient  client;
+
+/* Define Manual and Auto Variable */
+  String autoMode = "";
+  String manualLamp = ""; 
+  String arduinoHour, arduinoMinute;
+
+  String ON_hour = "";                                                     
+String ON_minute = "";
+String OFF_hour = "";                                                    
+String OFF_minute = "";
+
+/* Define PIN */
+int led = D3;
+
+void setup() {
+  
+  Serial.begin(115200);
+  delay(1000);
+  
+  pinMode(LED_BUILTIN, OUTPUT);      
+  pinMode(led, OUTPUT); 
+                  
+  /* Connect to WiFi */
+  WiFi.mode(WIFI_STA);
+  connectWifi();
+
+  /* Connect to Firebase */
+  Firebase.begin(FIREBASE_HOST, FIREBASE_AUTH);
+
+  /* Connect to RTC DS3231 */
+  Wire.begin(D2, D1);
+  rtc.begin();
+  }
+
+void loop() {
+autoMode = Firebase.getString("Mode/Auto_Mode");
+  if (autoMode == "ON") {
+    Serial.println("Automation Mode ON");
+    auto_method();
+    
+  }
+  else if (autoMode == "OFF"){
+    Serial.println("Manual Mode ON");
+    manual_method();
+  }
+  delay(1000);
+}
+  
+  
+void auto_method(){
+
+  /* Get Current Time */
+  DateTime now = rtc.now(); 
+  arduinoHour = now.hour();
+  arduinoMinute = now.minute();
+
+  Serial.print("TIME = ");
+  Serial.print(now.hour());
+  Serial.print(":");
+  Serial.print(now.minute());
+  
+  ON_hour = Firebase.getString("Mode/Auto_Time/ON_Hour");
+  ON_minute = Firebase.getString("Mode/Auto_Time/ON_Minute");
+  Serial.print("\nON = " + ON_hour + ":" + ON_minute);
+  OFF_hour = Firebase.getString("Mode/Auto_Time/OFF_Hour");
+  OFF_minute = Firebase.getString("Mode/Auto_Time/OFF_Minute");
+  Serial.println("\nOFF = " + OFF_hour + ":" + OFF_minute);
+ 
+  
+  delay(1000);
+  
+  if (arduinoHour == ON_hour && arduinoMinute == ON_minute) {                                                          
+    Serial.println("Led Turned ON");                         
+    digitalWrite(LED_BUILTIN, LOW);                                                  
+    digitalWrite(led, HIGH);                                                         
+  } 
+  else if (arduinoHour == OFF_hour && arduinoMinute == OFF_minute) {                                                  
+    Serial.println("Led Turned OFF");
+    digitalWrite(LED_BUILTIN, HIGH);                                               
+    digitalWrite(led, LOW);                                                         
+  }
+  else if (Firebase.failed()) { 
+      Serial.print("Firebase Error"); 
+      Serial.println(Firebase.error());   
+      return; 
+  }
+}
+
+void manual_method() {
+  manualLamp = Firebase.getString("Mode/Manual_Lamp");
+  if (manualLamp == "ON") {                                                         
+    Serial.println("Led Turned ON");                         
+    digitalWrite(LED_BUILTIN, LOW);                                                  
+    digitalWrite(led, HIGH);                                                         
+  } 
+  else if (manualLamp == "OFF") {                                                  
+    Serial.println("Led Turned OFF");
+    digitalWrite(LED_BUILTIN, HIGH);                                               
+    digitalWrite(led, LOW);                                                         
+  }
+  else if (Firebase.failed()) { 
+      Serial.print("setting /number failed:"); 
+      Serial.println(Firebase.error());   
+      return; 
+  }
+}
+
+/*
+ * Connect to WIFI
+ */
+void connectWifi(){
+  if(WiFi.status() != WL_CONNECTED){
+    Serial.print("Attempting to connect to SSID: ");
+    Serial.println(SECRET_SSID);
+    while(WiFi.status() != WL_CONNECTED){
+      WiFi.begin(ssid, pass);
+      Serial.print(".");
+      delay(5000);     
+    } 
+    Serial.println("\nConnected.");
+  }  
+}
